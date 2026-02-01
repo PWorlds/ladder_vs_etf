@@ -168,9 +168,6 @@ ETF_SLIPPAGE = params["ETF_SLIPPAGE"]
 ETF_STRESS_SPREAD = params["ETF_STRESS_SPREAD"]
 N_ETF_ISSUERS_TOTAL = params["N_ETF_ISSUERS"]
 
-
-# Shared Fixed/Legacy Params
-YEARS = 30
 # N_SIM definita sopra (30000)
 INF_MEAN = 0.02
 INF_VOL = 0.01
@@ -1858,3 +1855,4 @@ if __name__ == "__main__":
              os.rename('results.csv', f'results_{scen}.csv')
     
     print("\n\nALL EXPERIMENTS COMPLETED.")
+
