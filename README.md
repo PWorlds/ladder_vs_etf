@@ -75,7 +75,7 @@ The simulation proceeds through the following computational phases:
 Simply run the script directly:
 
 ```bash
-python ladder_vs_etf.py
+python ladder_vs_etf_v2.py
 ```
 
 By default, it runs the **EU_GOV** scenario. You can change `SELECTED_SCENARIO` in the script to test others.
