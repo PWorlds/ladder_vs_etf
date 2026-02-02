@@ -1,0 +1,51 @@
+Il modello non si limita a calcolare un interesse composto, ma simula la vita di un'obbligazione in un ambiente di mercato stocastico (casuale ma statisticamente coerente).
+
+1. Il Motore di Mercato (Stochastic Market Engine)
+Tutto parte dalla generazione di 30.000 scenari di mercato indipendenti attraverso la funzione 
+simulate_market_scenarios
+.
+
+Distribuzione Multivariata: Non usiamo una semplice curva gaussiana. Il mercato ha "code grasse" (eventi estremi sono più frequenti della norma). Il modello usa una T-Student multivariata (con 5 gradi di libertà) per generare gli shock.
+Correlazione (Cholesky): Le tre variabili chiave non si muovono a caso ma sono legate da una matrice di correlazione decomposta via Cholesky:
+Short Rate ($r_t$): Il tasso privo di rischio a brevissimo termine (es. tassi BCE).
+Slope ($s_t$): La pendenza della curva. Tassi alti spesso appiattiscono la curva (Slope basso o negativo/invertito).
+Inflazione ($i_t$): Correlata positivamente ai tassi (la banca centrale alza i tassi se l'inflazione sale).
+Modello della Curva: Il rendimento di un bond a maturità $M$ non è un numero arbitrario, ma è calcolato analiticamente come: $$Yield(M) = r_t + s_t \cdot \log_{10}(M)$$ Questo modello stilizzato (simile a un Nelson-Siegel semplificato) garantisce che i rendimenti a lungo termine siano coerenti con quelli a breve.
+2. Il Pricing del Bond (Valutazione)
+Ogni singolo bond nel Ladder è un oggetto autonomo con: Face Value, Coupon, Maturity, Cost Basis (prezzo fiscale di carico). Il prezzo di mercato (Mark-to-Market) al tempo $t$ è calcolato con il Discounted Cash Flow (DCF):
+
+$$P_t = \sum_{k=1}^{M} \frac{C}{(1 + y_{tk})^k} + \frac{F}{(1 + y_{tM})^M}$$
+
+Dove $y_{tk}$ è il tasso spot per la scadenza $k$ derivato dalla curva dei tassi generata al punto 1. Questo significa che se i tassi salgono, il prezzo del bond scende esattamente in base alla sua Duration matematica, non per una stima approssimativa.
+
+3. Gestione del Rischio di Credito (Default Stocastici)
+Qui il modello si differenzia dai semplici calcolatori finanziari.
+
+Regimi di Crisi: Ogni anno c'è una probabilità (es. 5%) di entrare in "Crisis Mode", dove le probabilità di default aumentano drasticamente (es. da 0.02% a 0.5% per i Gov).
+Evento Binomiale: Per ogni "rung" (gradino) del Ladder, che contiene $N$ emittenti (es. 3 titoli di stato diversi), lanciamo una moneta (distribuzione binomiale).
+Haircut (Loss Given Default): Se un bond fa default, non vale zero. Si applica un Recovery Rate estratto da una distribuzione Uniforme (es. recuperi tra il 50% e il 95% per i Governativi). $$Valore_{post} = Valore_{pre} \times (1 - (1 - Recovery))$$
+Impatto Asimmetrico: Poiché il Ladder ha pochi titoli (bassa diversificazione), un singolo default impatta pesantemente quel portafoglio. L'ETF, avendo migliaia di titoli, subisce il default come un leggero "drag" sulla performance complessiva, non come uno scalino netta.
+4. Frizione Reale: Costi e Tasse
+Il modello simula l'interazione con un broker reale (es. Directa/Fineco):
+
+Bid-Ask Spread: Quando compri, paghi il prezzo Ask (più alto). Quando vendi o ribilanci, incassi il Bid (più basso). Nei momenti di crisi, questo spread si allarga (simulazione di illiquidità).
+Slippage: Oltre lo spread, c'è un costo di "slippage" che simula l'inefficienza nell'eseguire l'ordine al prezzo teorico.
+Zainetto Fiscale: Lo script memorizza le minusvalenze.
+Se vendi un bond in perdita $\rightarrow$ accumuli credito fiscale.
+Se vendi in guadagno o incassi un rimborso sopra la pari $\rightarrow$ usi il credito per non pagare tasse (fino a esaurimento).
+Tassazione differenziata: 12.5% per Whitelist (Gov), 26% per Corporate.
+5. Il Modello "Browniani Bridge" (Micro-struttura temporale)
+Questa è la raffinatezza introdotta per gestire la pigrizia ("Laziness") e le spese intra-annuali. Visto che la simulazione procede a scatti annuali ($t=1, t=2...$), come facciamo a sapere che tasso c'era il 14 Marzo quando l'investitore "pigro" si è deciso a reinvestire la cedola di Gennaio?
+
+Usiamo un Brownian Bridge. Immagina di sapere il tasso al 1° Gennaio 2024 e al 1° Gennaio 2025. Non puoi tirare una linea dritta in mezzo. Il mercato ondeggia. Il Brownian Bridge genera un sentiero casuale realistico che "collega" i due punti noti, aggiungendo volatilità $\sigma$ nel mezzo.
+
+$$Rate(\tau) = Interpolazione(t, t+1) + Rumore(\tau)$$
+
+Questo ci permette di penalizzare l'investitore pigro non solo con il mancato interesse (tasso zero sul c/c), ma anche con il rischio di reinvestire in un momento di mercato peggiore (o migliore) rispetto alla scadenza naturale.
+
+Riassunto del Ciclo di Vita di un Bond nel simulatore:
+Emissione: Compro al prezzo Ask della curva dei tassi attuale.
+Vita: Incasso cedole nette.
+Scadenza: Rimborso a 100. Calcolo Capital Gain (100 - Prezzo Carico). Pago tasse o uso minus.
+Reinvestimento: I contanti finiscono nel "secchio" della liquidità. Se superano la soglia (e l'investitore non è pigro/dormiente), vengono usati per comprare il bond a 10 anni (o altra durata target).
+È un modello "fisico", nel senso che non approssima il rendimento con una formula (tipo Yield x Duration), ma simula effettivamente i flussi di cassa e gli scambi dei titoli sottostanti.
